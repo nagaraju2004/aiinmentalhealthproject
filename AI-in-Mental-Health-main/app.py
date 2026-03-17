@@ -10,9 +10,12 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import io
+import os
 from email.mime.image import MIMEImage
+
 # Load the trained model
-model = joblib.load('voting_gb_dt_model.pkl')
+model_path = os.path.join(os.path.dirname(__file__), "voting_gb_dt_model.pkl")
+model = joblib.load(model_path)
 
 # Connect to SQLite database
 conn = sqlite3.connect('new_user_data.db')
