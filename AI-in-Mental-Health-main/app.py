@@ -327,8 +327,8 @@ def update_admin_password(new_password):
     conn.commit()
 
 def send_email(to_email, subject, body):
-    from_email = "gandenagaraju2@gmail.com"
-    from_password = "WHcXkeg8YGLTEft"
+    from_email = "gandemani975@gmail.com"
+    from_password = "jklm nopq rstu vwxy"
 
     if not to_email or '@' not in to_email:
         return False
@@ -350,8 +350,8 @@ def send_email(to_email, subject, body):
         return False
 
 def send_email_with_attachment(to_email, subject, body, img_file):
-    from_email = "gandenagaraju2@gmail.com"
-    from_password = "WHcXkeg8YGLTEft"
+    from_email = "gandemani975@gmail.com"
+    from_password = "jklm nopq rstu vwxy"
 
     if not to_email or '@' not in to_email:
         return False
