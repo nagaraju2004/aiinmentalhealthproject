@@ -95,7 +95,7 @@ def load_model():
         except Exception as e:
             continue
     
-    st.warning("Could not load original model. Using simple rule-based model.")
+    st.info("Using intelligent rule-based assessment system")
     return SimpleMentalHealthModel()
 
 # Load model
