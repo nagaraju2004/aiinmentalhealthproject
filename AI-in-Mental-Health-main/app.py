@@ -4,18 +4,40 @@ import joblib
 import datetime
 import matplotlib.pyplot as plt
 import sqlite3
-import time  # Import time module
+import time
 import numpy as np
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import io
 from email.mime.image import MIMEImage
-# Load the trained model
-model = joblib.load('voting_gb_dt_model.pkl')
+import os
+from pathlib import Path
 
-# Connect to SQLite database
-conn = sqlite3.connect('new_user_data.db')
+# Get the absolute path to the current directory
+CURRENT_DIR = Path(__file__).parent.absolute()
+
+# Load the trained model with proper path handling
+@st.cache_resource
+def load_model():
+    model_path = CURRENT_DIR / 'voting_gb_dt_model.pkl'
+    try:
+        model = joblib.load(model_path)
+        return model
+    except FileNotFoundError:
+        st.error(f"Model file not found at: {model_path}")
+        st.error("Please ensure 'voting_gb_dt_model.pkl' is in the same directory as app.py")
+        st.stop()
+    except Exception as e:
+        st.error(f"Error loading model: {str(e)}")
+        st.stop()
+
+# Load the model
+model = load_model()
+
+# Connect to SQLite database with proper path
+db_path = CURRENT_DIR / 'new_user_data.db'
+conn = sqlite3.connect(str(db_path))
 c = conn.cursor()
 
 # Create tables if they don't exist
@@ -33,10 +55,11 @@ c.execute('''
         date DATETIME,
         prediction INTEGER,
         status TEXT,
-        time_spent INTEGER,  -- New column for time spent in seconds
+        time_spent INTEGER,
         FOREIGN KEY (username) REFERENCES users (username)
     )
 ''')
+
 # Create a new chat messages table if it doesn't exist
 c.execute('''
     CREATE TABLE IF NOT EXISTS chat_messages (
@@ -70,7 +93,7 @@ conn.commit()
 # Create admin account if it doesn't exist
 def create_admin_account():
     admin_username = "admin"
-    admin_password = "admin891"  # Change this to a more secure password
+    admin_password = "admin891"
     c.execute("INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)", (admin_username, admin_password))
     conn.commit()
 
@@ -121,8 +144,8 @@ def delete_chat_message(message_id):
 def predict(input_data):
     input_df = pd.DataFrame([input_data])
     prediction = model.predict(input_df)
-    confidence = model.predict_proba(input_df)  # This returns the probabilities for each class
-    confidence_percentage = np.max(confidence) * 100  # Assuming binary classification
+    confidence = model.predict_proba(input_df)
+    confidence_percentage = np.max(confidence) * 100
 
     return prediction[0], confidence_percentage
 
@@ -133,6 +156,7 @@ def map_to_status(yes_count):
         return "Moderate Instability"
     elif 5 <= yes_count <= 8:
         return "High Instability or Severe Instability"
+    return "Unknown Status"
 
 # Function to update admin password
 def update_admin_password(new_password):
@@ -140,8 +164,8 @@ def update_admin_password(new_password):
     conn.commit()
 
 def send_email(to_email, subject, body):
-    from_email = "chbharath0779@gmail.com"  # Replace with your email
-    from_password = "gnfq orjk evec sdwd"  # Replace with your email password
+    from_email = "chbharath0779@gmail.com"
+    from_password = "gnfq orjk evec sdwd"
 
     msg = MIMEMultipart()
     msg['From'] = from_email
@@ -161,8 +185,8 @@ def send_email(to_email, subject, body):
         return False
 
 def send_email_with_attachment(to_email, subject, body, img_file):
-    from_email = "chbharath0779@gmail.com"  # Replace with your email
-    from_password = "gnfq orjk evec sdwd"  # Replace with your email password
+    from_email = "chbharath0779@gmail.com"
+    from_password = "gnfq orjk evec sdwd"
 
     msg = MIMEMultipart()
     msg['From'] = from_email
@@ -171,8 +195,7 @@ def send_email_with_attachment(to_email, subject, body, img_file):
 
     msg.attach(MIMEText(body, 'plain'))
 
-    # Attach the image to the email
-    img_file.seek(0)  # Ensure the file pointer is at the start
+    img_file.seek(0)
     msg.attach(MIMEImage(img_file.read(), name='mood_tracking_graph.png'))
 
     try:
@@ -185,13 +208,11 @@ def send_email_with_attachment(to_email, subject, body, img_file):
         print(f"Failed to send email: {e}")
         return False
 
-
-
 # Initialize session state for authentication and mood tracking
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.username = ""
-    st.session_state.login_time = None  # Track login time
+    st.session_state.login_time = None
 
 if "admin_logged_in" not in st.session_state:
     st.session_state.admin_logged_in = False
@@ -203,7 +224,6 @@ if "predictions" not in st.session_state:
 st.markdown("<h1 style='text-align: left; color:rgb(0, 1, 75);'>🤖 AI in Mental Health: Detecting Early Signs of Instability 🧠</h1>", unsafe_allow_html=True)
 
 page = st.sidebar.selectbox("Select Page", ["Home", "Mood Tracking", "Personalized Recommendations", "Admin Dashboard", "Connect Page"])
-
 
 if page == "Home":
     if not st.session_state.logged_in:
@@ -227,9 +247,9 @@ if page == "Home":
                 elif authenticate(username, password):
                     st.session_state.logged_in = True
                     st.session_state.username = username
-                    st.session_state.login_time = time.time()  # Record login time
+                    st.session_state.login_time = time.time()
                     st.success(f"Logged in successfully as {username}!")
-                    st.rerun()  # Refresh the app state
+                    st.rerun()
                 else:
                     st.error("Invalid username or password")
     else:
@@ -281,39 +301,32 @@ if page == "Home":
         }
 
         if st.button("Predict"):
-            prediction, confidence_percentage = predict(input_data)  # Get both prediction and confidence
+            prediction, confidence_percentage = predict(input_data)
             status = map_to_status(prediction)
             st.write(f"Predicted Instability Rate (0 to 8): {prediction}")
-            st.write(f"Confidence: {confidence_percentage:.2f}%")  # Display confidence percentage
+            st.write(f"Confidence: {confidence_percentage:.2f}%")
             st.write(f"Mental Health Status: {status}")
-            # Calculate time spent in seconds
-            time_spent = int(time.time() - st.session_state.login_time)  # Duration in seconds
+            
+            time_spent = int(time.time() - st.session_state.login_time)
 
-            # Save prediction result to the database
             save_prediction(st.session_state.username, datetime.datetime.now(), prediction, status, time_spent)
-
-            # Fetch predictions for the user
             st.session_state.predictions = fetch_predictions(st.session_state.username)
 
         if st.button("Logout"):
-            # Calculate time spent before logging out
-            time_spent = int(time.time() - st.session_state.login_time)  # Duration in seconds
-            save_prediction(st.session_state.username, datetime.datetime.now(), 0, "Logged Out", time_spent)  # Save logout record
+            time_spent = int(time.time() - st.session_state.login_time)
+            save_prediction(st.session_state.username, datetime.datetime.now(), 0, "Logged Out", time_spent)
             st.session_state.logged_in = False
             st.session_state.username = ""
-            st.session_state.login_time = None  # Reset login time
-            st.session_state.predictions = pd.DataFrame(columns=["Date", "Prediction", "Status", "Time Spent"])  # Reset predictions on logout
-            st.rerun()  # Refresh the app state
-
+            st.session_state.login_time = None
+            st.session_state.predictions = pd.DataFrame(columns=["Date", "Prediction", "Status", "Time Spent"])
+            st.rerun()
 
 elif page == "Mood Tracking":
     st.subheader("Mood Tracking Records")
 
-    # Fetch predictions for the user
     if st.session_state.logged_in:
         st.session_state.predictions = fetch_predictions(st.session_state.username)
 
-        # Initialize visibility states
         if "show_records" not in st.session_state:
             st.session_state.show_records = False
         if "show_graph" not in st.session_state:
@@ -321,7 +334,6 @@ elif page == "Mood Tracking":
         if "show_monthly_graph" not in st.session_state:
             st.session_state.show_monthly_graph = False
 
-        # Create columns for buttons
         col1, col2, col3 = st.columns(3)
 
         with col1:
@@ -336,41 +348,31 @@ elif page == "Mood Tracking":
             if st.button("Show Monthly Predictions Graph"):
                 st.session_state.show_monthly_graph = not st.session_state.show_monthly_graph
 
-        # Display mood tracking records
         if st.session_state.show_records:
             if not st.session_state.predictions.empty:
                 st.write(st.session_state.predictions)
             else:
                 st.write("No predictions recorded yet.")
 
-        # Function to save the mood tracking graph as an image
         def save_mood_tracking_graph():
             if not st.session_state.predictions.empty:
-                # Count occurrences of each status
                 status_counts = st.session_state.predictions['Status'].value_counts()
-
-                # Plotting the graph
                 plt.figure(figsize=(10, 5))
                 plt.bar(status_counts.index, status_counts.values, color='skyblue', alpha=0.7)
                 plt.title('Mental Health Status Distribution', fontsize=16)
                 plt.xlabel('Mental Health Status', fontsize=12)
                 plt.ylabel('Count', fontsize=12)
                 
-                # Save the figure to a BytesIO object
                 img = io.BytesIO()
                 plt.savefig(img, format='png')
-                img.seek(0)  # Rewind the BytesIO object
-                plt.close()  # Close the plot to free memory
+                img.seek(0)
+                plt.close()
                 return img
             return None
 
-        # Display mood tracking graph
         if st.session_state.show_graph:
             if not st.session_state.predictions.empty:
-                # Count occurrences of each status
                 status_counts = st.session_state.predictions['Status'].value_counts()
-
-                # Plotting the graph
                 plt.figure(figsize=(10, 5))
                 plt.bar(status_counts.index, status_counts.values, color='skyblue', alpha=0.7)
                 plt.title('Mental Health Status Distribution', fontsize=16)
@@ -380,19 +382,13 @@ elif page == "Mood Tracking":
             else:
                 st.write("No predictions recorded yet.")
 
-        # Calculate monthly counts
         monthly_counts = None
         if not st.session_state.predictions.empty:
-            # Convert 'Date' to datetime
             st.session_state.predictions['Date'] = pd.to_datetime(st.session_state.predictions['Date'])
-            
-            # Group by month and count predictions
             monthly_counts = st.session_state.predictions.groupby(st.session_state.predictions['Date'].dt.to_period('M')).count()
 
-        # Display monthly predictions graph
         if st.session_state.show_monthly_graph:
-            if monthly_counts is not None:
-                # Plotting the monthly graph
+            if monthly_counts is not None and not monthly_counts.empty:
                 plt.figure(figsize=(10, 5))
                 plt.plot(monthly_counts.index.astype(str), monthly_counts['Prediction'], marker='o', color='orange', alpha=0.7)
                 plt.title('Monthly Predictions Count', fontsize=16)
@@ -403,26 +399,19 @@ elif page == "Mood Tracking":
             else:
                 st.write("No predictions recorded yet.")
 
-        # New section to request mental health report
         st.subheader("Request Your Mental Health Report")
 
-        # Input fields for name and email
         name = st.text_input("Your Name")
-        email = st.text_input("Your Email")  # Use default type for email
+        email = st.text_input("Your Email")
 
         if st.button("Send Report"):
             if name and email:
-                # Validate email format
                 if "@" in email and "." in email:
-                    # Prepare the report data
                     latest_prediction = st.session_state.predictions.iloc[-1] if not st.session_state.predictions.empty else None
                     latest_status = latest_prediction['Status'] if latest_prediction is not None else "N/A"
                     latest_date = latest_prediction['Date'] if latest_prediction is not None else "N/A"
-
-                    # Calculate average status
                     average_status = st.session_state.predictions['Status'].value_counts().idxmax() if not st.session_state.predictions.empty else "N/A"
 
-                    # Prepare personalized recommendations based on average status
                     recommendations = []
                     if average_status == "Stable or Low Instability":
                         recommendations = [
@@ -443,7 +432,6 @@ elif page == "Mood Tracking":
                             "Reach out to support groups or community resources."
                         ]
 
-                    # Create the report content in the desired format
                     report_content = f"""
 Dear {name},
 
@@ -462,14 +450,11 @@ Best regards,
 Mental Health Support Team
 """
 
-                    # Save the mood tracking graph
                     img = save_mood_tracking_graph()
                     if img:
-                        # Create a temporary file to save the image
                         img_file = io.BytesIO(img.getvalue())
-                        img_file.seek(0)  # Rewind the BytesIO object
+                        img_file.seek(0)
 
-                        # Send the report via email with the image attachment
                         if send_email_with_attachment(email, "Your Mental Health Report", report_content, img_file):
                             st.success("Report sent successfully!")
                         else:
@@ -480,52 +465,44 @@ Mental Health Support Team
                     st.error("Please enter a valid email address.")
             else:
                 st.error("Please enter both your name and email.")
+    else:
+        st.warning("Please log in to access mood tracking.")
 
-
-# In the Connect Page section
 elif page == "Connect Page":
     st.subheader("Chat Room")
 
-    # Check if the user is logged in
     if st.session_state.logged_in:
-        # Security code input
         security_code = st.text_input("Enter Security Code", type="password")
         if st.button("Join Chat"):
-            if security_code == "123456":  # Replace with your actual security code
+            if security_code == "123456":
                 st.session_state.chat_active = True
                 st.success("You have joined the chat room!")
             else:
                 st.error("Invalid security code. Please try again.")
 
         if "chat_active" in st.session_state and st.session_state.chat_active:
-            # Fetch and display previous chat messages
             messages = fetch_chat_messages()
             
-            # Initialize last sender
             last_sender = None
 
             for message_id, username, message, timestamp in messages:
                 if username == last_sender:
-                    # Same user, display message without a new block
                     st.markdown(f"<div style='text-align: left;'><span style='color: gray;'>{timestamp}</span> - {message}</div>", unsafe_allow_html=True)
                 else:
-                    # Different user, display message on the right
                     st.markdown(f"<div style='text-align: right;'><strong>{username}</strong>: {message} <span style='color: gray;'>{timestamp}</span></div>", unsafe_allow_html=True)
-                    last_sender = username  # Update last sender
+                    last_sender = username
 
-                # Add delete button for the user's own messages
                 if username == st.session_state.username:
-                    if st.button("Delete", key=message_id):  # Use message_id as the key
-                        delete_chat_message(message_id)  # Delete the message
+                    if st.button("Delete", key=message_id):
+                        delete_chat_message(message_id)
                         st.success("Message deleted successfully.")
-                        st.rerun()  # Refresh to show updated messages
+                        st.rerun()
 
-            # Input for new messages
             new_message = st.text_input("Type your message here...")
             if st.button("Send"):
                 if new_message.strip() != "":
                     save_chat_message(st.session_state.username, new_message)
-                    st.rerun()  # Refresh to show new message
+                    st.rerun()
                 else:
                     st.error("Message cannot be empty.")
 
@@ -533,11 +510,9 @@ elif page == "Connect Page":
                 st.session_state.chat_active = False
                 st.success("You have left the chat room.")
 
-        # New feature to connect with a psychologist or consultant
         st.subheader("Connect with a Psychologist or Consultant")
         st.write("If you need to talk, our skilled, judgment-free counselors are here to provide compassionate support. You deserve to feel heard and cared about anytime, anywhere, 24/7/365.")
 
-        # Contact options
         contact_method = st.selectbox("Select a contact method", ["Select", "Text", "Email", "Video Call"])
 
         if contact_method == "Text":
@@ -579,14 +554,14 @@ Mental Health Support Team
             email = st.text_input("Enter your email:")
             phone = st.text_input("Enter your phone number:")
             date = st.date_input("Select a date for the video call:")
-            time = st.time_input("Select a time for the video call:")
+            time_val = st.time_input("Select a time for the video call:")
             if st.button("Request Video Call"):
-                if name and email and phone and date and time:
+                if name and email and phone and date and time_val:
                     subject = "Video Call Request Confirmation"
                     body = f"""\
 Dear {name},
 
-We have received your request for a video call. You have scheduled a call on {date} at {time}. 
+We have received your request for a video call. You have scheduled a call on {date} at {time_val}. 
 
 Please join the call using the following link: [Video Call Link](https://www.example.com/video-call).
 
@@ -601,28 +576,21 @@ Mental Health Support Team
                         st.error("Failed to send email. Please try again later.")
                 else:
                     st.error("Please fill in all fields.")
-
     else:
         st.warning("Please log in to access the chat room.")
-
 
 elif page == "Personalized Recommendations":
     st.subheader("Personalized Recommendations")
 
     if st.session_state.logged_in:
-        # Fetch predictions for the user
         user_predictions = fetch_predictions(st.session_state.username)
 
         if not user_predictions.empty:
-            # Analyze the user's mood status
-            latest_status = user_predictions['Status'].iloc[-1]  # Get the latest status
-            average_status = user_predictions['Status'].value_counts().idxmax()  # Most common status
+            latest_status = user_predictions['Status'].iloc[-1]
+            average_status = user_predictions['Status'].value_counts().idxmax()
 
-            
-            # Create columns for recommendations
             col1, col2 = st.columns(2)
 
-            # Initialize visibility states for recommendations
             if "show_latest_rec" not in st.session_state:
                 st.session_state.show_latest_rec = False
             if "show_average_rec" not in st.session_state:
@@ -634,7 +602,7 @@ elif page == "Personalized Recommendations":
 
                 if st.session_state.show_latest_rec:
                     st.write(f"Your latest mental health status: **{latest_status}**")
-                    # Generate recommendations based on the latest status
+                    
                     if latest_status == "Stable or Low Instability":
                         recommendations = [
                             "Continue your daily routine and maintain healthy habits.",
@@ -656,7 +624,6 @@ elif page == "Personalized Recommendations":
                     else:
                         recommendations = ["No specific recommendations available."]
                     
-                    # Display recommendations
                     st.write("### Recommendations:")
                     for rec in recommendations:
                         st.write(f"- {rec}")
@@ -667,7 +634,7 @@ elif page == "Personalized Recommendations":
 
                 if st.session_state.show_average_rec:
                     st.write(f"Your average mental health status: **{average_status}**")
-                    # Generate recommendations based on the average status
+                    
                     if average_status == "Stable or Low Instability":
                         recommendations = [
                             "Maintain your current healthy habits.",
@@ -689,15 +656,12 @@ elif page == "Personalized Recommendations":
                     else:
                         recommendations = ["No specific recommendations available."]
                     
-                    # Display recommendations
                     st.write("### Recommendations:")
                     for rec in recommendations:
                         st.write(f"- {rec}")
 
-            # Mental Health Resources and Support
             st.markdown("<h2 style='text-align: center;'>Mental Health Resources and Support</h2>", unsafe_allow_html=True)
 
-            # Initialize visibility state for resources
             if "show_resources" not in st.session_state:
                 st.session_state.show_resources = False
 
@@ -720,16 +684,12 @@ elif page == "Personalized Recommendations":
 
                 st.write("### Local Mental Health Services")
                 st.write("Find local mental health services in your area by visiting [Psychology Today](https://www.psychologytoday.com/us/therapists).")
-
         else:
             st.write("No mood tracking data available. Please make predictions first.")
-            
     else:
         st.warning("Please log in to access personalized recommendations.")
 
-
 elif page == "Admin Dashboard":
-    # Admin login section
     if not st.session_state.admin_logged_in:
         admin_username = st.sidebar.text_input("Admin Username")
         admin_password = st.sidebar.text_input("Admin Password", type="password")
@@ -742,7 +702,6 @@ elif page == "Admin Dashboard":
     else:
         st.title("Admin Dashboard")
 
-        # Password change section
         st.subheader("Change Admin Password")
         new_password = st.text_input("New Admin Password", type="password")
         confirm_password = st.text_input("Confirm New Admin Password", type="password")
@@ -754,43 +713,34 @@ elif page == "Admin Dashboard":
             else:
                 st.error("Passwords do not match!")
 
-        # Fetch all users
         c.execute("SELECT username FROM users")
         users = c.fetchall()
-        user_list = [user[0] for user in users]  # Extract usernames from tuples
+        user_list = [user[0] for user in users]
 
-        # Display total number of users in a large box
         st.markdown("<h2 style='text-align: center;'>Total Users</h2>", unsafe_allow_html=True)
         st.markdown(f"<h1 style='text-align: center;'>{len(user_list)}</h1>", unsafe_allow_html=True)
 
-        # User selection for mood history
         selected_user = st.selectbox("Select a user to view details", user_list)
 
-        # Initialize visibility states
         if "show_user_details" not in st.session_state:
             st.session_state.show_user_details = False
         if "show_user_deletion" not in st.session_state:
             st.session_state.show_user_deletion = False
 
-        # Button to toggle user details visibility
         if st.button("Toggle User Details"):
             st.session_state.show_user_details = not st.session_state.show_user_details
 
         if st.session_state.show_user_details and selected_user:
-            # Fetch predictions for the selected user
             user_predictions = fetch_predictions(selected_user)
 
-            # Display user details in a table format
             if not user_predictions.empty:
                 st.subheader(f"Details for {selected_user}")
 
-                # Calculate user details
                 total_predictions = len(user_predictions)
-                average_status = user_predictions['Status'].value_counts().idxmax()  # Most common status
+                average_status = user_predictions['Status'].value_counts().idxmax()
                 last_prediction_date = user_predictions['Date'].max() if not user_predictions.empty else "N/A"
                 last_prediction_weekday = pd.to_datetime(last_prediction_date).day_name() if last_prediction_date != "N/A" else "N/A"
 
-                # Create a DataFrame for user details
                 user_details_data = {
                     "Metric": [
                         "Total Predictions",
@@ -807,11 +757,8 @@ elif page == "Admin Dashboard":
                 }
 
                 user_details_df = pd.DataFrame(user_details_data)
-
-                # Display the user details in a table
                 st.table(user_details_df)
 
-                # Display mood tracking graph for the selected user
                 status_counts = user_predictions['Status'].value_counts()
                 plt.figure(figsize=(10, 5))
                 plt.bar(status_counts.index, status_counts.values, color='blue', alpha=0.7)
@@ -822,95 +769,88 @@ elif page == "Admin Dashboard":
             else:
                 st.write(f"No mood history recorded for {selected_user}.")
 
-        # User Deletion Section
         st.subheader("Delete User")
-        delete_user = st.selectbox("Select a user to delete", user_list)
+        delete_user = st.selectbox("Select a user to delete", user_list, key="delete_user")
         
         if st.button("Toggle User Deletion"):
             st.session_state.show_user_deletion = not st.session_state.show_user_deletion
 
         if st.session_state.show_user_deletion:
-            if st.button("Delete User"):
+            if st.button("Delete User", key="confirm_delete"):
                 if delete_user:
                     c.execute("DELETE FROM users WHERE username=?", (delete_user,))
                     conn.commit()
-                    st.success(f"User  '{delete_user}' has been deleted successfully.")
-                    # Refresh the user list after deletion
+                    st.success(f"User '{delete_user}' has been deleted successfully.")
                     c.execute("SELECT username FROM users")
                     users = c.fetchall()
-                    user_list = [user[0] for user in users]  # Update user list
+                    user_list = [user[0] for user in users]
+                    st.rerun()
                 else:
                     st.error("Please select a user to delete.")
 
-        # Overall user activity monitoring
         st.subheader("Overall User Activity Monitoring")
 
-        # Fetch all predictions for overall statistics
         c.execute("SELECT username, date, prediction, status FROM predictions")
         predictions = c.fetchall()
         predictions_df = pd.DataFrame(predictions, columns=["Username", "Date", "Prediction", "Status"])
 
-        # Convert the 'Date' column to datetime
-        predictions_df['Date'] = pd.to_datetime(predictions_df['Date'], errors='coerce')
+        if not predictions_df.empty and 'Date' in predictions_df.columns:
+            predictions_df['Date'] = pd.to_datetime(predictions_df['Date'], errors='coerce')
+            predictions_df = predictions_df.dropna(subset=['Date'])
 
-        if not predictions_df.empty:
-            # Calculate overall statistics
-            total_users_active = predictions_df['Username'].nunique()
-            most_active_weekday = predictions_df['Date'].dt.day_name().value_counts().idxmax()
-            # Filter out "Logged Out" status
-            filtered_predictions_df = predictions_df[predictions_df['Status'] != "Logged Out"]
-            most_predicted_status = filtered_predictions_df['Status'].value_counts().idxmax() if not filtered_predictions_df.empty else "N/A"
+            if not predictions_df.empty:
+                total_users_active = predictions_df['Username'].nunique()
+                most_active_weekday = predictions_df['Date'].dt.day_name().value_counts().idxmax() if not predictions_df.empty else "N/A"
+                filtered_predictions_df = predictions_df[predictions_df['Status'] != "Logged Out"]
+                most_predicted_status = filtered_predictions_df['Status'].value_counts().idxmax() if not filtered_predictions_df.empty else "N/A"
 
-            # Create a DataFrame for overall activity monitoring details
-            overall_activity_data = {
-                "Metric": [
-                    "Total Active Users",
-                    "Most Active Weekday",
-                    "Most Predicted Status"
-                ],
-                "Value": [
-                    total_users_active,
-                    most_active_weekday,
-                    most_predicted_status
-                ]
-            }
+                overall_activity_data = {
+                    "Metric": [
+                        "Total Active Users",
+                        "Most Active Weekday",
+                        "Most Predicted Status"
+                    ],
+                    "Value": [
+                        total_users_active,
+                        most_active_weekday,
+                        most_predicted_status
+                    ]
+                }
 
-            overall_activity_df = pd.DataFrame(overall_activity_data)
+                overall_activity_df = pd.DataFrame(overall_activity_data)
+                st.table(overall_activity_df)
 
-            # Display the overall activity monitoring details in a table
-            st.table(overall_activity_df)
+                if st.button("Show Total Active Users by Weekday Graph"):
+                    active_users_by_weekday = predictions_df.groupby(predictions_df['Date'].dt.day_name())['Username'].nunique().reindex(
+                        ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], fill_value=0)
+                    plt.figure(figsize=(10, 5))
+                    plt.bar(active_users_by_weekday.index, active_users_by_weekday.values, color='blue', alpha=0.7)
+                    plt.title('Total Active Users by Weekday', fontsize=16)
+                    plt.ylabel('Count of Active Users', fontsize=12)
+                    plt.xlabel('Weekday', fontsize=12)
+                    plt.xticks(rotation=45)
+                    st.pyplot(plt)
 
-            # Buttons for displaying graphs
-            if st.button("Show Total Active Users by Weekday Graph"):
-                active_users_by_weekday = predictions_df.groupby(predictions_df['Date'].dt.day_name())['Username'].nunique().reindex(
-                    ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'], fill_value=0)
-                plt.figure(figsize=(10, 5))
-                plt.bar(active_users_by_weekday.index, active_users_by_weekday.values, color='blue', alpha=0.7)
-                plt.title('Total Active Users by Weekday', fontsize=16)
-                plt.ylabel('Count of Active Users', fontsize=12)
-                plt.xlabel('Weekday', fontsize=12)
-                plt.xticks(rotation=45)
-                st.pyplot(plt)
+                if st.button("Show Most Active Weekday Graph"):
+                    weekday_counts = predictions_df['Date'].dt.day_name().value_counts()
+                    plt.figure(figsize=(10, 5))
+                    plt.plot(weekday_counts.index, weekday_counts.values, marker='o', color='blue', alpha=0.7)
+                    plt.title('Most Active Weekday', fontsize=16)
+                    plt.xlabel('Weekday', fontsize=12)
+                    plt.ylabel('Count', fontsize=12)
+                    plt.xticks(rotation=45)
+                    st.pyplot(plt)
 
-            if st.button("Show Most Active Weekday Graph"):
-                weekday_counts = predictions_df['Date'].dt.day_name().value_counts()
-                plt.figure(figsize=(10, 5))
-                plt.plot(weekday_counts.index, weekday_counts.values, marker='o', color='blue', alpha=0.7)
-                plt.title('Most Active Weekday', fontsize=16)
-                plt.xlabel('Weekday', fontsize=12)
-                plt.ylabel('Count', fontsize=12)
-                plt.xticks(rotation=45)
-                st.pyplot(plt)
-
-            if st.button("Show Most Predicted Status Graph"):
-                status_counts = predictions_df['Status'].value_counts()
-                plt.figure(figsize=(10, 5))
-                plt.plot(status_counts.index, status_counts.values, marker='o', color='blue', alpha=0.7)
-                plt.title('Most Predicted Status', fontsize=16)
-                plt.xlabel('Status', fontsize=12)
-                plt.ylabel('Count', fontsize=12)
-                plt.xticks(rotation=45)
-                st.pyplot(plt)
-
+                if st.button("Show Most Predicted Status Graph"):
+                    status_counts = predictions_df['Status'].value_counts()
+                    plt.figure(figsize=(10, 5))
+                    plt.plot(status_counts.index, status_counts.values, marker='o', color='blue', alpha=0.7)
+                    plt.title('Most Predicted Status', fontsize=16)
+                    plt.xlabel('Status', fontsize=12)
+                    plt.ylabel('Count', fontsize=12)
+                    plt.xticks(rotation=45)
+                    st.pyplot(plt)
+            else:
+                st.write("No valid date data available.")
         else:
             st.write("No predictions recorded yet.")
