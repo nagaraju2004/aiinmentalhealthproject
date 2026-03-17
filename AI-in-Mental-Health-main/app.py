@@ -1,7 +1,19 @@
+import os
+import sys
 import streamlit as st
+
+# Set environment variables to prevent segmentation fault
+os.environ['STREAMLIT_SERVER_MAX_UPLOAD_SIZE'] = '10'
+os.environ['STREAMLIT_SERVER_MAX_MESSAGE_SIZE'] = '50'
+
+# Fix matplotlib backend to prevent segmentation fault
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+# Regular imports
 import pandas as pd
 import datetime
-import matplotlib.pyplot as plt
 import sqlite3
 import time
 import numpy as np
@@ -9,12 +21,11 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import io
-import os
 from email.mime.image import MIMEImage
 import warnings
 warnings.filterwarnings('ignore')
 
-# Configure page
+# Configure page - THIS MUST BE THE FIRST STREAMLIT COMMAND
 st.set_page_config(page_title="AI Mental Health", layout="wide")
 
 # Simple rule-based prediction model as fallback
@@ -146,8 +157,22 @@ conn, c = init_database()
 def create_admin_account():
     admin_username = "admin"
     admin_password = "admin891"
-    c.execute("INSERT OR IGNORE INTO users (username, password) VALUES (?, ?)", (admin_username, admin_password))
-    conn.commit()
+    # First check if admin exists
+    c.execute("SELECT * FROM users WHERE username=?", (admin_username,))
+    if c.fetchone() is None:
+        # Admin doesn't exist, create it
+        c.execute("INSERT INTO users (username, password) VALUES (?, ?)", (admin_username, admin_password))
+        conn.commit()
+        print("Admin account created successfully")
+    else:
+        # Admin exists, verify password
+        c.execute("SELECT password FROM users WHERE username=?", (admin_username,))
+        current_password = c.fetchone()[0]
+        if current_password != admin_password:
+            # Update to correct password
+            c.execute("UPDATE users SET password=? WHERE username=?", (admin_password, admin_username))
+            conn.commit()
+            print("Admin password updated")
 
 create_admin_account()
 
@@ -327,20 +352,18 @@ def update_admin_password(new_password):
     conn.commit()
 
 # ====================== FIXED EMAIL FUNCTIONS ======================
-# Replace your existing send_email and send_email_with_attachment functions with these
-
 def send_email(to_email, subject, body):
     # !!! IMPORTANT: Replace these with YOUR ACTUAL details !!!
     from_email = "gandemani975@gmail.com"  # Your Gmail address
     # Replace this with the REAL 16-character App Password you get from Google
-    from_password = "jklm nopq rstu vwxy"  # <-- YOU MUST GENERATE THIS!
+    from_password = "YOUR_16_DIGIT_APP_PASSWORD_HERE"  # <-- YOU MUST GENERATE THIS!
 
     if not to_email or '@' not in to_email:
         st.error("Invalid recipient email address.")
         return False
 
-    # Debug: Check if password is still the placeholder (Remove after testing)
-    if from_password == "jklm nopq rstu vwxy":
+    # Debug: Check if password is still the placeholder
+    if from_password == "YOUR_16_DIGIT_APP_PASSWORD_HERE":
         st.error("❌ YOU ARE USING THE EXAMPLE PASSWORD! Generate a real App Password from Google.")
         st.info("Go to: https://myaccount.google.com/apppasswords")
         return False
@@ -372,19 +395,18 @@ def send_email(to_email, subject, body):
         st.error(f"An unexpected email error occurred: {str(e)}")
         return False
 
-
 def send_email_with_attachment(to_email, subject, body, img_file):
     # !!! IMPORTANT: Replace these with YOUR ACTUAL details !!!
     from_email = "gandemani975@gmail.com"  # Your Gmail address
     # Replace this with the REAL 16-character App Password you get from Google
-    from_password = "jklm nopq rstu vwxy"  # <-- YOU MUST GENERATE THIS!
+    from_password = "YOUR_16_DIGIT_APP_PASSWORD_HERE"  # <-- YOU MUST GENERATE THIS!
 
     if not to_email or '@' not in to_email:
         st.error("Invalid recipient email address.")
         return False
 
-    # Debug: Check if password is still the placeholder (Remove after testing)
-    if from_password == "jklm nopq rstu vwxy":
+    # Debug: Check if password is still the placeholder
+    if from_password == "YOUR_16_DIGIT_APP_PASSWORD_HERE":
         st.error("❌ YOU ARE USING THE EXAMPLE PASSWORD! Generate a real App Password from Google.")
         st.info("Go to: https://myaccount.google.com/apppasswords")
         return False
@@ -1102,4 +1124,4 @@ elif page == "Admin Dashboard":
 
         if st.button("Logout"):
             st.session_state.admin_logged_in = False
-            st.rerun() 
+            st.rerun()
