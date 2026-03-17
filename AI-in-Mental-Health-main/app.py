@@ -356,14 +356,14 @@ def send_email(to_email, subject, body):
     # !!! IMPORTANT: Replace these with YOUR ACTUAL details !!!
     from_email = "gandemani975@gmail.com"  # Your Gmail address
     # Replace this with the REAL 16-character App Password you get from Google
-    from_password = "YOUR_16_DIGIT_APP_PASSWORD_HERE"  # <-- YOU MUST GENERATE THIS!
+    from_password = "abcd efgh ijkl mnop "  # <-- YOU MUST GENERATE THIS!
 
     if not to_email or '@' not in to_email:
         st.error("Invalid recipient email address.")
         return False
 
     # Debug: Check if password is still the placeholder
-    if from_password == "YOUR_16_DIGIT_APP_PASSWORD_HERE":
+    if from_password == "abcd efgh ijkl mnop ":
         st.error("❌ YOU ARE USING THE EXAMPLE PASSWORD! Generate a real App Password from Google.")
         st.info("Go to: https://myaccount.google.com/apppasswords")
         return False
