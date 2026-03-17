@@ -1,6 +1,4 @@
-Email sending failed: (535, b'5.7.8 Username and Password not accepted. For more information, go to\n5.7.8 https://support.google.com/mail/?p=BadCredentials d2e1a72fcca58-82a0725ca0asm19446920b3a.17 - gsmtp')
-
-Failed to send email. Please try again. this error is occuring  even i change it with my details also in this  code import streamlit as st
+import streamlit as st
 import pandas as pd
 import datetime
 import matplotlib.pyplot as plt
